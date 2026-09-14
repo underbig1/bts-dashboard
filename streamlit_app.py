@@ -599,7 +599,7 @@ def render_market(st, quotes, reference):
         with column:
             with st.container(border=True):
                 st.subheader(title)
-                krw, usd = st.columns(2)
+                krw, usd = st.container(), st.container()
                 with krw:
                     result = quotes["upbit"]
                     if result["data"] is not None:
