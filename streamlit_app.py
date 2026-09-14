@@ -470,6 +470,10 @@ BRAND_STYLE = '''<style>
 .bts-section-s .bts-section-initial{color:#548255}
 .bts-record-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start;margin:12px 0 18px}
 .bts-record-card{--bts-tint:rgba(128,140,158,.07);--bts-edge:rgba(128,140,158,.22);min-width:0;border:1px solid var(--bts-edge);border-radius:12px;padding:20px;background:var(--bts-tint);color:inherit}
+.stApp a.bts-record-link{display:block;color:inherit;text-decoration:none;cursor:pointer}
+.stApp a.bts-record-link:hover{color:inherit;text-decoration:none;border-color:#be943b;box-shadow:0 3px 12px #be943b20}
+.stApp a.bts-record-link:focus-visible{outline:3px solid #be943b;outline-offset:3px}
+.stApp a.bts-record-link .bts-record-title{display:block}
 .bts-record-reading{--bts-tint:rgba(221,177,87,.13);--bts-edge:rgba(190,148,59,.24)}
 .bts-record-fitness{--bts-tint:rgba(111,161,107,.12);--bts-edge:rgba(101,151,96,.24)}
 .bts-record-project{--bts-tint:rgba(93,145,188,.12);--bts-edge:rgba(88,139,179,.24)}
@@ -521,6 +525,11 @@ def section_heading(st, section):
     )
 
 
+RECORD_LINKS = {
+    "민음사 세계고전 501권 읽기": "https://tropical-hub-028.notion.site/501-3cfaa88e004181e19859f86af00cad1f",
+}
+
+
 def render_record_cards(st, records):
     """Keep record order and content while escaping all Notion-authored HTML."""
     styles = {"독서": "reading", "운동": "fitness", "프로젝트": "project"}
@@ -528,12 +537,20 @@ def render_record_cards(st, records):
     for record in records:
         category = str(record.get("category") or "")
         status = str(record.get("status") or "")
-        title = escape(str(record.get("title") or "이름 없는 활동"))
+        raw_title = str(record.get("title") or "이름 없는 활동")
+        title = escape(raw_title)
         note = str(record.get("note") or "")
         goal = str(record.get("next_goal") or "")
         style = styles.get(category.strip(), "neutral")
-        content = [f'<article class="bts-record-card bts-record-{style}">',
-                   f'<h3 class="bts-record-title">{title}</h3>']
+        link = RECORD_LINKS.get(raw_title.strip())
+        if link:
+            content = [f'<a class="bts-record-card bts-record-{style} bts-record-link" '
+                       f'href="{escape(link, quote=True)}" target="_blank" rel="noopener noreferrer" '
+                       f'aria-label="{title} · 노션 기록 보기 (새 탭)">',
+                       f'<span class="bts-record-title" role="heading" aria-level="3">{title}</span>']
+        else:
+            content = [f'<article class="bts-record-card bts-record-{style}">',
+                       f'<h3 class="bts-record-title">{title}</h3>']
         if category or status:
             content.append('<div class="bts-record-meta">')
             if category:
@@ -546,7 +563,7 @@ def render_record_cards(st, records):
         if goal:
             content.append('<div class="bts-record-goal-label">다음 목표</div>')
             content.append(f'<p class="bts-record-goal">{escape(goal)}</p>')
-        content.append('</article>')
+        content.append('</a>' if link else '</article>')
         cards.append(''.join(content))
     if cards:
         st.markdown('<div class="bts-record-grid">' + ''.join(cards) + '</div>',
