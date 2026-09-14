@@ -90,17 +90,13 @@ def load_records(token, source_id, request_fn=notion_request):
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
-from html.parser import HTMLParser
 from math import isfinite
 import math
-import re
 import xml.etree.ElementTree as ET
 
-UPBIT_URL = "https://api.upbit.com/v1/ticker?markets=KRW-BTC,KRW-USDT"
+UPBIT_URL = "https://api.upbit.com/v1/ticker?markets=KRW-BTC"
 COINBASE_URL = "https://api.exchange.coinbase.com/products/{product}/ticker"
 ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
-BOK_URL = "https://www.bok.or.kr/portal/singl/baseRate/list.do?dataSeCd=01&menuNo=200643"
-NYFED_URL = "https://markets.newyorkfed.org/api/rates/unsecured/effr/last/1.json"
 MAX_BYTES = 1_000_000
 HALVING_INTERVAL = 210_000
 SATOSHIS_PER_BTC = 100_000_000
@@ -147,7 +143,7 @@ def _json_body(body):
 def parse_upbit(payload):
     if not isinstance(payload, list):
         raise ValueError("업비트 응답 형식을 확인할 수 없습니다.")
-    wanted = {"KRW-BTC": "BTC", "KRW-USDT": "USDT"}
+    wanted = {"KRW-BTC": "BTC"}
     result = {}
     for item in payload:
         if not isinstance(item, dict) or item.get("market") not in wanted:
@@ -162,7 +158,7 @@ def parse_upbit(payload):
         except (ValueError, OverflowError, OSError):
             raise ValueError("업비트 체결시각을 확인할 수 없습니다.") from None
         result[symbol] = {"price": price, "time": trade_time}
-    if set(result) != {"BTC", "USDT"}:
+    if set(result) != {"BTC"}:
         raise ValueError("업비트 거래쌍 데이터가 일부 누락되었습니다.")
     return result
 
@@ -213,100 +209,13 @@ def load_upbit(fetch=fetch_bytes):
 
 
 def load_usd(product, fetch=fetch_bytes):
-    if product not in {"BTC-USD", "USDT-USD"}:
+    if product not in {"BTC-USD"}:
         raise ValueError("지원하지 않는 달러 거래쌍입니다.")
     return parse_usd(_json_body(fetch(COINBASE_URL.format(product=product))))
 
 
 def load_fx(fetch=fetch_bytes):
     return parse_fx(fetch(ECB_URL))
-
-
-def checked_rate(value):
-    if isinstance(value, bool):
-        raise ValueError("Invalid policy rate")
-    number = float(value)
-    if not math.isfinite(number) or not -5 <= number <= 40:
-        raise ValueError("Invalid policy rate")
-    return number
-
-
-class TableParser(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.tables = []
-        self.stack = []
-        self.row = None
-        self.cell = None
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "table":
-            self.stack.append([])
-        elif tag == "tr" and self.stack:
-            self.row = []
-        elif tag in {"th", "td"} and self.row is not None:
-            self.cell = []
-
-    def handle_data(self, data):
-        if self.cell is not None:
-            self.cell.append(data)
-
-    def handle_endtag(self, tag):
-        if tag in {"th", "td"} and self.cell is not None:
-            self.row.append(" ".join("".join(self.cell).split()))
-            self.cell = None
-        elif tag == "tr" and self.row is not None:
-            self.stack[-1].append(self.row)
-            self.row = None
-        elif tag == "table" and self.stack:
-            self.tables.append(self.stack.pop())
-
-
-def parse_bok(document, today=None):
-    today = today or date.today()
-    parser = TableParser()
-    parser.feed(document)
-    for rows in parser.tables:
-        headers = " ".join(" ".join(row) for row in rows[:3])
-        if "변경일자" not in headers or "기준금리" not in headers:
-            continue
-        observations = []
-        previous_year = None
-        for row in rows:
-            if len(row) == 3 and re.fullmatch(r"\d{4}", row[0]):
-                previous_year, month_day, value = int(row[0]), row[1], row[2]
-            elif len(row) == 2 and previous_year is not None:
-                month_day, value = row
-            else:
-                continue
-            match = re.fullmatch(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일", month_day)
-            if not match:
-                continue
-            observed_date = date(previous_year, int(match[1]), int(match[2]))
-            if observed_date <= today:
-                observations.append((observed_date, checked_rate(value)))
-        if observations:
-            observed_date, rate = max(observations)
-            return {"rate": rate, "date": observed_date.isoformat(), "date_kind": "last_change", "source": BOK_URL}
-    raise ValueError("BOK policy-rate table not found")
-
-
-def parse_nyfed(payload, today=None):
-    today = today or date.today()
-    observations = []
-    for row in payload.get("refRates", []):
-        if row.get("type") != "EFFR":
-            continue
-        observed_date = date.fromisoformat(row["effectiveDate"])
-        low, high = checked_rate(row["targetRateFrom"]), checked_rate(row["targetRateTo"])
-        if low > high:
-            raise ValueError("NY Fed target range reversed")
-        if observed_date <= today:
-            observations.append((observed_date, low, high))
-    if not observations:
-        raise ValueError("No target-range observations")
-    observed_date, low, high = max(observations)
-    return {"low": low, "high": high, "date": observed_date.isoformat(), "date_kind": "observation", "source": "https://www.newyorkfed.org/markets/reference-rates/effr", "stale": (today - observed_date).days > 5}
 
 
 def _time_number(value, *, integer=False, positive=False):
@@ -448,71 +357,8 @@ def fetch_time_snapshot(public_fetch, now=None):
 
 
 
-BIS_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.KR?lastNObservations=1"
-BIS_SOURCE_URL = "https://data.bis.org/topics/CBPOL/BIS%2CWS_CBPOL%2C1.0/D.KR"
-
-
-def parse_bis(body, today=None):
-    today = today or date.today()
-    try:
-        root = ET.fromstring(body)
-    except (ET.ParseError, ValueError, TypeError):
-        raise ValueError("BIS 금리 자료 형식을 확인할 수 없습니다.") from None
-    references = [item for item in root.iter() if item.tag.rsplit("}", 1)[-1] == "Ref"]
-    if not any(item.get("agencyID") == "BIS" and item.get("id") == "WS_CBPOL" for item in references):
-        raise ValueError("BIS 기준금리 자료인지 확인할 수 없습니다.")
-    datasets = [item for item in root.iter() if item.tag.rsplit("}", 1)[-1] == "DataSet"]
-    matches = []
-    for dataset in datasets:
-        for series in dataset:
-            if (series.tag.rsplit("}", 1)[-1] == "Series"
-                    and series.get("FREQ") == "D" and series.get("REF_AREA") == "KR"):
-                matches.append((dataset, series))
-    if len(matches) != 1:
-        raise ValueError("BIS 한국 일별 기준금리 자료가 없거나 중복되었습니다.")
-    dataset, series = matches[0]
-    if dataset.get("UNIT_MULT") != "0" or dataset.get("UNIT_MEASURE") != "368":
-        raise ValueError("BIS 금리 단위를 확인할 수 없습니다.")
-    observations = {}
-    for observation in series:
-        if observation.tag.rsplit("}", 1)[-1] != "Obs":
-            continue
-        for node in (series, observation):
-            if (node.get("UNIT_MULT", "0") != "0"
-                    or node.get("UNIT_MEASURE", "368") != "368"):
-                raise ValueError("BIS 금리 단위가 일치하지 않습니다.")
-        try:
-            observed_date = date.fromisoformat(observation.attrib["TIME_PERIOD"])
-            rate = float(observation.attrib["OBS_VALUE"])
-        except (KeyError, ValueError, TypeError, OverflowError):
-            raise ValueError("BIS 금리 값 또는 기준일을 확인할 수 없습니다.") from None
-        if observed_date > today or not math.isfinite(rate) or not -5 <= rate <= 40:
-            raise ValueError("BIS 금리 값 또는 기준일의 범위를 확인할 수 없습니다.")
-        if observed_date in observations:
-            raise ValueError("BIS 금리 기준일이 중복되었습니다.")
-        observations[observed_date] = rate
-    if not observations:
-        raise ValueError("BIS 금리 관측값이 없습니다.")
-    latest = max(observations)
-    return {"rate": observations[latest], "date": latest.isoformat(),
-            "date_kind": "observation", "source": BIS_SOURCE_URL,
-            "provider": "BIS", "stale": (today - latest).days > 10}
-
-
 def public_json(url):
     return _json_body(fetch_bytes(url))
-
-
-def load_bok():
-    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
-    try:
-        return parse_bok(fetch_bytes(BOK_URL, timeout=5).decode("utf-8"), today=today)
-    except Exception:
-        return parse_bis(fetch_bytes(BIS_URL), today=today)
-
-
-def load_us_policy():
-    return parse_nyfed(public_json(NYFED_URL), today=datetime.now(timezone.utc).date())
 
 
 def collect_public(jobs):
@@ -527,240 +373,222 @@ def collect_public(jobs):
         return dict(pool.map(attempt, jobs.items()))
 
 
-def kst_time(value):
-    return value.astimezone(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S KST")
+def _compact_integer(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        valid = isfinite(value) and value >= 0 and int(value) == value
+    except (ValueError, OverflowError):
+        return None
+    if not valid:
+        return None
+    return int(value)
 
 
-def public_missing(st, label):
-    st.info(f"{label} 자료를 불러오지 못했습니다. 잠시 후 ‘자료 새로고침’을 눌러 주세요.")
+def block_track(snapshot, previous_height=None):
+    """Render real mined blocks and pool projections with gentle motion."""
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    previous_height = _compact_integer(previous_height)
+    mined = {}
+    recent_rows = snapshot.get("recent_blocks")
+    for block in recent_rows if isinstance(recent_rows, (list, tuple)) else []:
+        if not isinstance(block, dict):
+            continue
+        height = _compact_integer(block.get("height"))
+        if height is not None:
+            mined[height] = block
+    pending = {}
+    pending_rows = snapshot.get("pending_blocks")
+    for block in pending_rows if isinstance(pending_rows, (list, tuple)) else []:
+        if not isinstance(block, dict):
+            continue
+        position = _compact_integer(block.get("position"))
+        count = _compact_integer(block.get("tx_count"))
+        if position is not None and position > 0 and count is not None:
+            pending[position] = (count, block.get("is_aggregate") is True)
+
+    cards = []
+    for height in sorted(mined, reverse=True)[:3][::-1]:
+        entrance = " bts-cube-new" if previous_height is not None and height > previous_height else ""
+        cards.append(
+            f'<div class="bts-cube-slot"><div class="bts-cube bts-cube-mined{entrance}" '
+            f'role="img" aria-label="확정 블록 {height:,}">'
+            '<i class="bts-cube-top" aria-hidden="true"></i>'
+            '<i class="bts-cube-right" aria-hidden="true"></i>'
+            f'<div class="bts-cube-front"><span class="bts-cube-mark" aria-hidden="true">✓</span>'
+            f'<strong>#{height:,}</strong></div></div></div>'
+        )
+    if cards and pending:
+        cards.append('<span class="bts-cube-divider" aria-hidden="true"></span>')
+    for index, position in enumerate(sorted(pending)[:3]):
+        count, aggregate = pending[position]
+        qualifier = "대기 묶음" if aggregate else "대기"
+        cards.append(
+            f'<div class="bts-cube-slot"><div class="bts-cube bts-cube-pending" '
+            f'style="--bts-phase:{-index * 1.3}s" role="img" '
+            f'aria-label="{position}번째 {qualifier}, 거래 {count:,}건">'
+            '<i class="bts-cube-top" aria-hidden="true"></i>'
+            '<i class="bts-cube-right" aria-hidden="true"></i>'
+            f'<div class="bts-cube-front"><span class="bts-cube-mark">{qualifier}</span>'
+            f'<strong>{count:,}</strong><small>tx</small></div></div></div>'
+        )
+    if not cards:
+        cards.append('<span class="bts-cubes-empty" role="status">—</span>')
+    return '''<style>
+    .bts-cubes-wrap{container-type:inline-size;width:100%;overflow:hidden}
+    .bts-cubes{display:flex;align-items:center;gap:clamp(3px,1.2%,12px);width:100%;max-width:700px;min-height:132px;padding:29px 4px 19px;box-sizing:border-box}
+    .bts-cube-slot{flex:1 1 0;min-width:0;max-width:104px}
+    .bts-cube{position:relative;width:77%;aspect-ratio:1;isolation:isolate;filter:drop-shadow(2px 7px 5px #0d294819);transform-origin:center;--bts-front:#3979b6;--bts-top:#75acd9;--bts-right:#245582}
+    .bts-cube-front{position:absolute;inset:0;background:linear-gradient(145deg,var(--bts-front),var(--bts-right));border:1px solid #ffffff24;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#fff;box-sizing:border-box;gap:3px;z-index:3}
+    .bts-cube-top{position:absolute;bottom:100%;left:0;width:100%;height:27%;background:linear-gradient(100deg,var(--bts-top),var(--bts-front));transform:skewX(-45deg);transform-origin:left bottom;border-top:1px solid #ffffff44;box-sizing:border-box}
+    .bts-cube-right{position:absolute;left:100%;top:0;width:27%;height:100%;background:var(--bts-right);transform:skewY(-45deg);transform-origin:left top;border-right:1px solid #0c203433;box-sizing:border-box}
+    .bts-cube-front strong{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:clamp(8px,1.7cqw,13px);font-weight:600;letter-spacing:-.055em;white-space:nowrap;line-height:1.25}
+    .bts-cube-mark{font:500 clamp(8px,1.5cqw,11px)/1.1 system-ui,sans-serif;opacity:.85}
+    .bts-cube-front small{font:500 clamp(7px,1.3cqw,10px)/1 system-ui,sans-serif;opacity:.75}
+    .bts-cube-pending{--bts-front:#d4a348;--bts-top:#f2d390;--bts-right:#a77426;animation:bts-pool-float 5s ease-in-out var(--bts-phase,0s) infinite}
+    .bts-cube-divider{flex:0 0 1px;height:54px;background:linear-gradient(transparent,#a9aebb,transparent);margin:0 5px}
+    .bts-cube-new{animation:bts-confirm-in .9s cubic-bezier(.2,.75,.25,1) both}
+    .bts-cubes-empty{font-size:16px;color:#8a8f9b;padding:20px 0}
+    @keyframes bts-confirm-in{from{opacity:.25;transform:translateX(30%) translateY(-7px)}to{opacity:1;transform:translateX(0) translateY(0)}}
+    @keyframes bts-pool-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+    @container (max-width:400px){.bts-cubes{min-height:104px;padding-top:23px;padding-bottom:19px}.bts-cube-front{gap:2px}.bts-cube-divider{margin:0 3px;height:38px}}
+    @media(prefers-reduced-motion:reduce){.bts-cube-pending,.bts-cube-new{animation:none}}
+    </style><div class="bts-cubes-wrap"><div class="bts-cubes" aria-label="비트코인 확정 블록과 멤풀 대기 거래">''' + "".join(cards) + "</div></div>"
 
 
-def quote_detail(st, result, symbol=None):
-    if result["data"] is None:
-        return
-    quote = result["data"][symbol] if symbol else result["data"]
-    st.caption(f"최근 체결 {kst_time(quote['time'])}")
-    st.caption(f"조회 {kst_time(result['checked_at'])}")
+COMPACT_STYLE = '''<style>
+.block-container{padding-top:2rem!important;padding-bottom:2rem!important}
+.bts-market{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;margin:8px 0 12px}
+.bts-price-card{border:1px solid rgba(128,140,158,.22);border-radius:16px;padding:22px 24px;background:rgba(128,140,158,.025);min-width:0}
+.bts-coin{display:flex;align-items:center;gap:9px;font-size:14px;opacity:.72;margin-bottom:16px}
+.bts-coin b{color:#db9117;font-size:21px;opacity:1}
+.bts-quotes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.bts-price{display:flex;align-items:baseline;gap:8px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bts-price .currency{font-size:20px;color:#a98345}.bts-price strong{font-size:clamp(21px,2.5vw,34px);font-weight:550;letter-spacing:-.7px}
+.bts-fx{font-size:clamp(19px,2.2vw,29px);font-weight:500;white-space:nowrap;letter-spacing:-.5px}
+.bts-reference{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12px;line-height:1.8;opacity:.67;font-variant-numeric:tabular-nums;margin:5px 0}
+.bts-reference b{font-size:13px;font-weight:550}.bts-reference span{display:inline-block}
+.bts-progress{height:3px;background:rgba(150,160,175,.14);border-radius:5px;overflow:hidden;margin:12px 0 7px}
+.bts-progress i{display:block;height:100%;background:#b89655}
+@media(max-width:700px){.bts-market{grid-template-columns:1fr}.bts-price-card{padding:18px 20px}.bts-price strong{font-size:28px}}
+@media(max-width:440px){.bts-quotes{grid-template-columns:1fr;gap:12px}.bts-reference{gap:5px 14px}.bts-price strong{font-size:29px}}
+</style>'''
+
+
+def visible_quote(result, symbol=None):
+    data = result.get("data")
+    if data is None:
+        return None
+    quote = data[symbol] if symbol else data
     age = (datetime.now(timezone.utc) - quote["time"]).total_seconds()
-    if age > 900:
-        st.warning("최근 체결시각이 15분 이상 지났습니다. 출처에서 현재 시세를 확인해 주세요.")
-    elif age < -300:
-        st.warning("출처의 체결시각이 조회시각보다 앞서 있습니다. 시각을 확인해 주세요.")
+    return quote["price"] if -300 <= age <= 900 else None
+
+
+def render_market(st, quotes, reference):
+    st.header("B · Save Bitcoin", divider="gray")
+    krw = visible_quote(quotes["upbit"], "BTC")
+    usd = visible_quote(quotes["BTC"])
+    fx = reference["fx"].get("data")
+    if fx and not 0 <= (datetime.now(timezone.utc).date() - fx["date"]).days <= 7:
+        fx = None
+    krw_text = "—" if krw is None else f"{krw:,.0f}"
+    usd_text = "—" if usd is None else f"{usd:,.2f}"
+    fx_text = "—" if fx is None else f"{fx['rate']:,.2f}"
+    st.markdown(f'''<div class="bts-market">
+<div class="bts-price-card"><div class="bts-coin"><b>₿</b> Bitcoin</div>
+<div class="bts-quotes"><div class="bts-price"><span class="currency" aria-label="KRW">₩</span><strong>{krw_text}</strong></div>
+<div class="bts-price"><span class="currency" aria-label="USD">$</span><strong>{usd_text}</strong></div></div></div>
+<div class="bts-price-card"><div class="bts-coin">$ / ₩</div><div class="bts-fx">$1 = ₩{fx_text}</div></div>
+</div>''', unsafe_allow_html=True)
+
+
+def render_time(st, snapshot):
+    st.header("T · Trust Time", divider="gray")
+    previous_height = st.session_state.get("bts_previous_height")
+    st.markdown(block_track(snapshot, previous_height), unsafe_allow_html=True)
+    if snapshot["recent_blocks"]:
+        st.session_state["bts_previous_height"] = snapshot["recent_blocks"][0]["height"]
+    parts = []
+    backlog, fees = snapshot["backlog"], snapshot["fees"]
+    if backlog is not None:
+        parts.append(f"<span>대기 <b>{backlog['tx_count']:,}</b> · {backlog['vsize_vb']/1_000_000:.2f} MvB</span>")
+    if fees is not None:
+        parts.append(f"<span>수수료 · 빠름 <b>{fees['fastestFee']:g}</b> / 30분 <b>{fees['halfHourFee']:g}</b> / 1시간 <b>{fees['hourFee']:g}</b> sat/vB</span>")
+    if snapshot["errors"]:
+        parts.append("<span>일부 연결 지연</span>")
+    if parts:
+        st.markdown('<div class="bts-reference">'+"".join(parts)+'</div>', unsafe_allow_html=True)
+    data = snapshot["halving"]
+    if data is not None:
+        progress = min(data["cycle_progress"] * 100, 99.99)
+        estimated = data["estimated_at"].astimezone(ZoneInfo("Asia/Seoul")).strftime("%Y.%m.%d")
+        st.markdown(f'''<div class="bts-progress" role="progressbar" aria-label="Halving" aria-valuenow="{progress:.2f}" aria-valuemin="0" aria-valuemax="100"><i style="width:{progress:.4f}%"></i></div>
+<div class="bts-reference"><span>반감기 <b>{progress:.2f}%</b></span><span>남은 블록 <b>{data['remaining_blocks']:,}</b></span><span>다음 <b>#{data['next_height']:,}</b></span><span>예상 <b>{estimated}</b></span><span><b>{data['current_subsidy_btc']:g} → {data['next_subsidy_btc']:g}</b> BTC/블록</span></div>''', unsafe_allow_html=True)
 
 
 def render_self(st):
-    st.header("S · Self", divider="gray")
-    st.write("오늘의 노력을 기록하고, 다음 걸음을 이어갑니다.")
-    st.button("기록 새로고침", help="노션에서 보드에 표시한 기록을 다시 읽습니다.")
+    st.header("S · Grow Self", divider="gray")
     try:
         token = str(st.secrets.get("NOTION_TOKEN", "")).strip()
         source_id = str(st.secrets.get("NOTION_DATA_SOURCE_ID", "")).strip()
     except Exception:
-        st.info("노션 연결 설정이 필요합니다.")
+        st.caption("기록 연결 대기")
         return
     if not token or not source_id:
-        st.info("노션 연결 설정이 필요합니다.")
+        st.caption("기록 연결 대기")
         return
     try:
-        with st.spinner("노션 기록을 읽고 있습니다…"):
-            records = load_records(token, source_id)
-    except BoardError as exc:
-        st.error(str(exc))
-        return
+        records = load_records(token, source_id)
     except Exception:
-        # Never render raw exceptions, requests, credentials, or Notion responses.
-        st.error("기록을 읽는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+        st.caption("기록 연결 지연 · ↻")
         return
-    checked_at = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S")
-    st.success(f"노션 연결됨 · 표시할 기록 {len(records)}건")
-    st.caption(f"실제 조회: {checked_at} KST · 표시 순서 오름차순 · 같은 순서는 최근 수정순")
     if not records:
-        st.info("아직 보드에 표시할 기록이 없습니다. 노션 기록부에 활동을 입력하고 ‘보드에 표시’를 체크해 주세요.")
-        st.caption("‘표시 순서’에 1, 2, 3…을 입력하시면 원하는 순서로 표시됩니다. 입력 후 ‘기록 새로고침’을 눌러 주세요.")
-    else:
-        columns = st.columns(3)
-        for index, record in enumerate(records):
-            with columns[index % 3]:
-                with st.container(border=True):
-                    st.subheader(record["title"])
-                    st.caption(" · ".join(filter(None, [record["category"], record["status"]])))
-                    if record["note"]:
-                        st.text(record["note"])
-                    if record["next_goal"]:
-                        st.caption("다음 목표")
-                        st.text(record["next_goal"])
-
-
-
-def render_market(st, quotes, reference):
-    st.header("B · Bitcoin", divider="gray")
-    st.write("가격과 금리를 살펴보며, 투자의 기준을 세웁니다.")
-    for column, symbol, title in zip(st.columns(2), ("BTC", "USDT"), ("비트코인 · BTC", "테더 · USDT")):
-        with column:
-            with st.container(border=True):
-                st.subheader(title)
-                krw, usd = st.container(), st.container()
-                with krw:
-                    result = quotes["upbit"]
-                    if result["data"] is not None:
-                        st.metric("원화 · KRW", f"₩{result['data'][symbol]['price']:,.0f}")
-                        quote_detail(st, result, symbol)
-                    else:
-                        st.metric("원화 · KRW", "—")
-                        public_missing(st, "원화 시세")
-                    st.caption(f"[업비트 원화 시장](https://upbit.com/exchange?code=CRIX.UPBIT.KRW-{symbol}) · 실제 거래 가격")
-                with usd:
-                    result = quotes[symbol]
-                    if result["data"] is not None:
-                        decimals = 2 if symbol == "BTC" else 5
-                        st.metric("달러 · USD", "$" + f"{result['data']['price']:,.{decimals}f}")
-                        quote_detail(st, result)
-                    else:
-                        st.metric("달러 · USD", "—")
-                        public_missing(st, "달러 시세")
-                    st.caption(f"[Coinbase 달러 시장](https://api.exchange.coinbase.com/products/{symbol}-USD/ticker) · 실제 거래 가격")
-    fx_col, kr_col, us_col = st.columns(3)
-    with fx_col:
-        with st.container(border=True):
-            result = reference["fx"]
-            data = result["data"]
-            st.metric("원/달러 환율", "—" if data is None else f"{data['rate']:,.2f}원")
-            st.caption("1 USD당 KRW · ECB 일일 참조환율")
-            if data is not None:
-                st.caption(f"자료 기준 {data['date']} · 유로 기준 두 환율로 계산")
-                st.caption(f"조회 {kst_time(result['checked_at'])}")
-                if (datetime.now(timezone.utc).date() - data["date"]).days > 7:
-                    st.warning("환율 기준일이 7일 이상 지났습니다.")
-            else:
-                public_missing(st, "환율")
-            st.caption("[유럽중앙은행 출처](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html) · 영업일 갱신")
-    with kr_col:
-        with st.container(border=True):
-            result = reference["bok"]
-            data = result["data"]
-            st.metric("한국 기준금리", "—" if data is None else f"{data['rate']:.2f}%")
-            st.caption("한국은행 기준금리 · 연율")
-            if data is not None:
-                if data.get("provider") == "BIS":
-                    st.caption(f"자료 기준 {data['date']} · BIS(한국은행 제공)")
-                    st.caption("한국은행 직접 연결 지연으로 공식 대체 자료를 표시합니다.")
-                    if data["stale"]:
-                        st.warning("대체 자료의 기준일이 10일 이상 지났습니다. 최신 결정은 한국은행 출처를 확인해 주세요.")
-                    st.caption(f"[BIS 자료 출처]({data['source']})")
-                else:
-                    st.caption(f"최근 변경 {data['date']}")
-                st.caption(f"조회 {kst_time(result['checked_at'])}")
-            else:
-                public_missing(st, "한국 기준금리")
-            st.caption(f"[한국은행 출처]({BOK_URL})")
-    with us_col:
-        with st.container(border=True):
-            result = reference["us"]
-            data = result["data"]
-            st.metric("미국 기준금리", "—" if data is None else f"{data['low']:.2f}–{data['high']:.2f}%")
-            st.caption("연방기금금리 목표범위 · 연율")
-            if data is not None:
-                st.caption(f"자료 기준 {data['date']}")
-                st.caption(f"조회 {kst_time(result['checked_at'])}")
-                if data["stale"]:
-                    st.warning("미국 금리 자료의 갱신이 늦어지고 있습니다. 기준일을 확인해 주세요.")
-            else:
-                public_missing(st, "미국 기준금리")
-            st.caption("[뉴욕 연방준비은행 출처](https://www.newyorkfed.org/markets/reference-rates/effr) · 공표된 목표범위")
-
-
-def block_track(snapshot):
-    cards = []
-    for block in reversed((snapshot["recent_blocks"] or [])[:3]):
-        at = block["mined_at"].astimezone(ZoneInfo("Asia/Seoul")).strftime("%m-%d %H:%M KST")
-        cards.append(f'<a class="bts-block mined" href="{block["url"]}" target="_blank" rel="noopener noreferrer"><span>확정된 블록</span><strong>#{block["height"]:,}</strong><span>{block["tx_count"]:,}건</span><small>블록 시각 {at}</small></a>')
-    if snapshot["recent_blocks"] and snapshot["pending_blocks"]:
-        cards.append('<div class="bts-boundary">←<br>채굴</div>')
-    for block in (snapshot["pending_blocks"] or [])[:3]:
-        label = "이후 대기 묶음" if block["is_aggregate"] else ("다음 블록 예상" if block["position"] == 1 else f'{block["position"]}번째 예상')
-        cards.append(f'<div class="bts-block pending"><span>{label}</span><strong>{block["tx_count"]:,}건</strong><span>중앙값 {block["median_fee_sat_vb"]:.2f} sat/vB</span><small>{block["vsize_vb"] / 1_000_000:.2f} MvB</small></div>')
-    return '''<style>
-    .bts-track{display:flex;gap:12px;overflow-x:auto;padding:8px 0 16px;align-items:center}
-    .bts-block{box-sizing:border-box;flex:1 0 164px;min-height:155px;border-radius:14px;padding:18px 16px;display:flex;flex-direction:column;gap:8px;text-decoration:none!important;color:#172c44!important}
-    .bts-block strong{font-size:23px}.bts-block span{font-size:13px}.bts-block small{font-size:11px}
-    .bts-block.mined{background:#e5eef9;border:1px solid #bdd0e8}.bts-block.pending{background:#fff1da;border:1px dashed #d5a763}
-    .bts-boundary{color:#718096;text-align:center;flex:0 0 28px;font-size:12px}
-    </style><div class="bts-track">''' + "".join(cards) + "</div>"
-
-
-def render_time(st, snapshot):
-    st.header("T · Time", divider="gray")
-    st.write("블록이 쌓이는 시간과, 줄어드는 신규 발행량을 봅니다.")
-    st.caption(f"[mempool.space 출처](https://mempool.space/) · 조회 {kst_time(snapshot['fetched_at'])}")
-    for message in snapshot["errors"].values():
-        st.info(message)
-    if snapshot["recent_blocks"] or snapshot["pending_blocks"]:
-        st.markdown(block_track(snapshot), unsafe_allow_html=True)
-        st.caption("파란색은 확정된 블록, 주황색은 대기 거래로 구성한 예상 블록입니다. 거래 유입과 수수료에 따라 구성은 달라집니다.")
-    if snapshot["pending_blocks"] == []:
-        st.info("현재 예상 대기 블록이 없습니다.")
-    backlog, fees = snapshot["backlog"], snapshot["fees"]
-    if backlog:
-        first, second = st.columns(2)
-        first.metric("확정 대기 거래", f"{backlog['tx_count']:,}건")
-        second.metric("대기 거래 크기", f"{backlog['vsize_vb'] / 1_000_000:,.2f} MvB")
-    if fees:
-        for col, label, key in zip(st.columns(3), ("높은 우선순위", "약 30분 목표", "약 1시간 목표"), ("fastestFee", "halfHourFee", "hourFee")):
-            col.metric(label, f"{fees[key]:g} sat/vB")
-        st.caption("권장 수수료율 · sat/vB는 가상 바이트당 사토시입니다. 표시 시간 내 확정을 보장하지 않습니다.")
-    data = snapshot["halving"]
-    st.subheader("다음 반감기까지")
-    if data is None:
-        public_missing(st, "반감기 계산에 필요한 블록 높이")
+        st.caption("표시할 기록이 없습니다.")
         return
-    cols = st.columns(3)
-    cols[0].metric("현재 블록 높이", f"{data['height']:,}")
-    cols[1].metric("남은 블록", f"{data['remaining_blocks']:,}개")
-    cols[2].metric("다음 반감기 블록", f"{data['next_height']:,}")
-    progress = data["cycle_progress"]
-    st.progress(progress, text=f"이번 반감기 주기 {min(progress * 100, 99.99):.2f}% 진행")
-    estimate = data["estimated_at"].astimezone(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
-    st.write(f"**예상 {estimate}경** · 신규 발행량 **{data['current_subsidy_btc']:g} → {data['next_subsidy_btc']:g} BTC/블록**")
-    st.caption("조회 시점부터 블록당 평균 10분 가정 · 실제 일정은 달라질 수 있습니다. 신규 발행량에는 거래 수수료가 포함되지 않습니다.")
-    st.caption("[비트코인 반감기 현황](https://mempool.space/graphs/mining/block-rewards) · 210,000블록마다 신규 발행량 감소")
-    last_block = snapshot["recent_blocks"][0]
-    if (snapshot["fetched_at"] - last_block["mined_at"]).total_seconds() > 7200:
-        st.warning("최근 블록 시각이 2시간 이상 지났습니다. 블록 높이와 예상일을 출처에서 확인해 주세요.")
+    columns = st.columns(3)
+    for index, record in enumerate(records):
+        with columns[index % 3]:
+            with st.container(border=True):
+                st.subheader(record["title"])
+                st.caption(" · ".join(filter(None, [record["category"], record["status"]])))
+                if record["note"]:
+                    st.text(record["note"])
+                if record["next_goal"]:
+                    st.caption("다음 목표")
+                    st.text(record["next_goal"])
 
 
 def main():
     import streamlit as st
     st.set_page_config(page_title="BTS 투자철학", page_icon="🌱", layout="wide")
-    st.title("BTS 투자철학")
-    st.caption("Bitcoin · Time · Self")
-    st.markdown("[B · 가격과 금리](#b-bitcoin)　 [T · 블록과 반감기](#t-time)　 [S · 나의 기록](#s-self)")
+    st.markdown(COMPACT_STYLE, unsafe_allow_html=True)
 
     @st.cache_data(ttl=55, show_spinner=False, max_entries=1)
-    def market_quotes():
-        return collect_public({"upbit": load_upbit, "BTC": lambda: load_usd("BTC-USD"), "USDT": lambda: load_usd("USDT-USD")})
+    def bitcoin_quotes():
+        return collect_public({"upbit": load_upbit, "BTC": lambda: load_usd("BTC-USD")})
 
     @st.cache_data(ttl=3600, show_spinner=False, max_entries=1)
-    def reference_values():
-        return collect_public({"fx": load_fx, "bok": load_bok, "us": load_us_policy})
+    def exchange_reference():
+        return collect_public({"fx": load_fx})
 
     @st.cache_data(ttl=55, show_spinner=False, max_entries=1)
     def time_values():
         return fetch_time_snapshot(public_json)
 
+    heading, refresh = st.columns([10, 1])
+    with heading:
+        st.title("BTS 투자철학")
+    with refresh:
+        if st.button("↻", help="새로고침", key="refresh_board"):
+            bitcoin_quotes.clear()
+            exchange_reference.clear()
+            time_values.clear()
+    st.caption("Save Bitcoin · Trust Time · Grow Self")
+
     @st.fragment(run_every=60)
     def public_sections():
-        if st.button("자료 새로고침", help="가격·환율·금리·블록 자료를 제공처에서 다시 읽습니다."):
-            market_quotes.clear()
-            reference_values.clear()
-            time_values.clear()
-        st.caption("화면이 열려 있는 동안 시세·블록은 1분마다 갱신합니다. 환율·기준금리는 1시간마다 확인합니다.")
-        with st.spinner("가격과 기준 자료를 읽고 있습니다…"):
-            quotes = market_quotes()
-            reference = reference_values()
-        render_market(st, quotes, reference)
-        with st.spinner("블록 진행 상황을 읽고 있습니다…"):
-            snapshot = time_values()
-        render_time(st, snapshot)
+        render_market(st, bitcoin_quotes(), exchange_reference())
+        render_time(st, time_values())
 
     public_sections()
     render_self(st)
