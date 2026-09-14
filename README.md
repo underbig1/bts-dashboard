@@ -1,12 +1,16 @@
-# BTS 투자철학
+# BTS investment philosophy
 
-Save Bitcoin · Trust Time · Grow Self
+save Bitcoin · trust Time · grow Self
 
-[BTS 투자철학 열기](https://bts-investment-philosophy-app.streamlit.app/)
+[BTS investment philosophy 열기](https://bts-investment-philosophy-app.streamlit.app/)
 
-- **B · Save Bitcoin:** 비트코인 원화·달러 가격과 원/달러 환율
-- **T · Trust Time:** 작은 입체 블록, 대기 거래·수수료·반감기 참고 정보
-- **S · Grow Self:** 노션에서 관리하는 개인 노력 기록
+페이지 상단에 배너 이미지를 표시하고, 같은 페이지에서 바로 대시보드를 보여줍니다.
+
+- **save Bitcoin:** 비트코인 원화·달러 가격과 원/달러 환율
+- **trust Time:** 작은 입체 블록, 대기 거래·수수료·반감기 참고 정보
+- **grow Self:** 노션에서 관리하는 개인 노력 기록
+
+각 영역의 B·T·S는 다른 글자보다 두 배 크게 표시하며, 오렌지·청회색·초록색으로 강조합니다.
 
 ## 자료 기준과 갱신
 
@@ -16,11 +20,13 @@ Save Bitcoin · Trust Time · Grow Self
 
 반감기는 현재 블록 높이로 계산합니다. 예상 날짜는 블록당 평균 10분을 가정하며, 수수료의 목표시간과 반감기 예상일은 보장된 일정이 아닙니다.
 
-화면이 열려 있는 동안 시세·블록은 1분마다 갱신하고, 환율은 1시간 간격으로 확인합니다. 상단 **↻**를 누르면 공개 자료와 노션 기록을 다시 읽습니다.
+대시보드가 열려 있는 동안 시세·블록은 1분마다 갱신하고, 환율은 1시간 간격으로 확인합니다. 상단 **↻**를 누르면 공개 자료와 노션 기록을 다시 읽습니다.
 
 ## S 기록 관리
 
 노션의 `BTS 투자철학 · Self 기록`에서 활동을 관리합니다. `보드에 표시`를 체크한 활동만 `표시 순서` 오름차순으로 나타납니다. 같은 순서는 최근 수정순이며, 순서가 비어 있으면 뒤에 표시됩니다.
+
+기록 제목은 기존보다 약 30% 작게 표시합니다. 카드에는 분야에 따라 독서는 연한 금색, 운동은 연한 초록색, 프로젝트는 연한 파란색 배경을 적용합니다.
 
 ## 로컬 실행
 
@@ -30,3 +36,5 @@ streamlit run streamlit_app.py
 ```
 
 노션 연결은 `NOTION_TOKEN`과 `NOTION_DATA_SOURCE_ID` 설정을 사용합니다. 배포 환경에서는 Streamlit Secrets에 저장하며, 인증키를 코드나 저장소에 넣지 않습니다. B·T 영역에는 별도 인증키가 필요하지 않습니다.
+
+상단 배너는 저장소의 `Codex 이미지 2026년 9월 14일 오후 04_23_51.png` 원본을 사용합니다. 이미지는 `streamlit_app.py`와 같은 폴더에 둡니다.
