@@ -1,4 +1,4 @@
-"""B.T.S Board: read-only Notion Self cards. Credentials live in st.secrets."""
+"""BTS 투자철학: read-only Notion Self cards. Credentials live in st.secrets."""
 import json
 import socket
 from datetime import datetime
@@ -27,7 +27,7 @@ def notion_request(token, path, body=None):
         messages = {
             400: "기록부 항목 또는 연결 설정을 확인해 주세요.",
             401: "노션 인증을 확인하지 못했습니다. 앱의 비밀 설정을 확인해 주세요.",
-            403: "BTS Board 연결의 콘텐츠 읽기 권한을 확인해 주세요.",
+            403: "BTS 투자철학 연결의 콘텐츠 읽기 권한을 확인해 주세요.",
             404: "기록부에 접근할 수 없습니다. 연결의 콘텐츠 사용 권한을 확인해 주세요.",
             429: "노션 요청이 잠시 많습니다. 잠시 후 새로고침해 주세요.",
         }
@@ -89,8 +89,8 @@ def load_records(token, source_id, request_fn=notion_request):
 
 def main():
     import streamlit as st
-    st.set_page_config(page_title="B.T.S Board", page_icon="🌱", layout="wide")
-    st.title("B.T.S Board")
+    st.set_page_config(page_title="BTS 투자철학", page_icon="🌱", layout="wide")
+    st.title("BTS 투자철학")
     st.caption("Bitcoin · Time · Self")
     st.header("S · Self", divider="gray")
     st.write("오늘의 노력을 기록하고, 다음 걸음을 이어갑니다.")
