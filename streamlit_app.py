@@ -437,6 +437,7 @@ def block_track(snapshot, previous_height=None):
 
 
 COMPACT_STYLE = '''<style>
+@import url('https://fonts.googleapis.com/css?family=Nanum+Pen+Script&display=swap');
 .block-container{padding-top:2rem!important;padding-bottom:2rem!important}
 .stApp .bts-philosophy-ko{font-size:18px;font-weight:400;line-height:1.55;letter-spacing:-.04em;margin:4px 0 16px;word-break:keep-all;overflow-wrap:anywhere;color:inherit;opacity:.8}
 .bts-market{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:8px 0 12px}
@@ -449,10 +450,10 @@ COMPACT_STYLE = '''<style>
 .bts-reference{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12px;line-height:1.8;opacity:.67;font-variant-numeric:tabular-nums;margin:5px 0}
 .bts-reference b{font-size:13px;font-weight:550}.bts-reference span{display:inline-block}
 .stApp .bts-time-motto{max-width:700px;margin:10px 0 18px;padding:22px 24px;border-left:5px solid #f7931a;border-radius:4px 12px 12px 4px;background:#202d33;color:#fff;box-shadow:0 5px 18px #1220280d}
-.stApp .bts-time-motto p{margin:0;font-family:"Arial Black","Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:clamp(20px,2.6vw,30px);font-weight:900;line-height:1.5;letter-spacing:-.055em;word-break:keep-all;overflow-wrap:anywhere;color:#fff}
+.stApp .bts-time-motto p{margin:0;font-family:"Nanum Pen Script","Malgun Gothic",cursive;font-size:clamp(28px,3vw,34px);font-weight:400;line-height:1.4;letter-spacing:0;word-break:keep-all;overflow-wrap:anywhere;color:#fff}
 .stApp .bts-motto-line{display:block}
-.stApp .bts-time-motto strong{color:#ffb442;font-size:inherit;font-weight:900}
-@media(max-width:440px){.stApp .bts-time-motto{padding:18px 16px}.stApp .bts-time-motto p{font-size:20px;line-height:1.55}}
+.stApp .bts-time-motto strong{color:#ffb442;font-family:inherit;font-size:inherit;font-weight:400}
+@media(max-width:440px){.stApp .bts-time-motto{padding:18px 16px}.stApp .bts-time-motto p{font-size:26px;line-height:1.45}}
 .bts-progress{height:3px;background:rgba(150,160,175,.14);border-radius:5px;overflow:hidden;margin:12px 0 7px}
 .bts-progress i{display:block;height:100%;background:#b89655}
 @media(max-width:700px){.bts-market{grid-template-columns:1fr}.bts-price-card{padding:18px 20px}.bts-price strong{font-size:28px}}
