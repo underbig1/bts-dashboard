@@ -91,14 +91,12 @@ def load_records(token, source_id, request_fn=notion_request):
 
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from math import isfinite
 import math
-import xml.etree.ElementTree as ET
 
 UPBIT_URL = "https://api.upbit.com/v1/ticker?markets=KRW-BTC"
 COINBASE_URL = "https://api.exchange.coinbase.com/products/{product}/ticker"
-ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 MAX_BYTES = 1_000_000
 HALVING_INTERVAL = 210_000
 SATOSHIS_PER_BTC = 100_000_000
@@ -181,31 +179,6 @@ def parse_usd(payload):
     return {"price": price, "time": trade_time.astimezone(timezone.utc)}
 
 
-def parse_fx(body):
-    try:
-        root = ET.fromstring(body)
-    except (ET.ParseError, ValueError, TypeError):
-        raise ValueError("ECB 환율 응답을 해석할 수 없습니다.") from None
-    dated = [item for item in root.iter() if item.tag.rsplit("}", 1)[-1] == "Cube" and "time" in item.attrib]
-    if len(dated) != 1:
-        raise ValueError("ECB 환율 기준일을 확인할 수 없습니다.")
-    day = dated[0]
-    try:
-        reference_date = date.fromisoformat(day.attrib["time"])
-    except ValueError:
-        raise ValueError("ECB 환율 기준일 형식을 확인할 수 없습니다.") from None
-    rates = {}
-    for item in day:
-        currency = item.attrib.get("currency")
-        if currency in {"USD", "KRW"}:
-            if currency in rates:
-                raise ValueError("ECB 통화 데이터가 중복되었습니다.")
-            rates[currency] = _positive(item.attrib.get("rate"))
-    if set(rates) != {"USD", "KRW"}:
-        raise ValueError("ECB 달러 또는 원화 환율이 누락되었습니다.")
-    return {"rate": rates["KRW"] / rates["USD"], "date": reference_date}
-
-
 def load_upbit(fetch=fetch_bytes):
     return parse_upbit(_json_body(fetch(UPBIT_URL)))
 
@@ -214,10 +187,6 @@ def load_usd(product, fetch=fetch_bytes):
     if product not in {"BTC-USD"}:
         raise ValueError("지원하지 않는 달러 거래쌍입니다.")
     return parse_usd(_json_body(fetch(COINBASE_URL.format(product=product))))
-
-
-def load_fx(fetch=fetch_bytes):
-    return parse_fx(fetch(ECB_URL))
 
 
 def _time_number(value, *, integer=False, positive=False):
@@ -461,14 +430,13 @@ def block_track(snapshot, previous_height=None):
 COMPACT_STYLE = '''<style>
 .block-container{padding-top:2rem!important;padding-bottom:2rem!important}
 .stApp .bts-philosophy-ko{font-size:18px;font-weight:400;line-height:1.55;letter-spacing:-.04em;margin:4px 0 16px;word-break:keep-all;overflow-wrap:anywhere;color:inherit;opacity:.8}
-.bts-market{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;margin:8px 0 12px}
+.bts-market{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:8px 0 12px}
 .bts-price-card{border:1px solid rgba(128,140,158,.22);border-radius:16px;padding:22px 24px;background:rgba(128,140,158,.025);min-width:0}
 .bts-coin{display:flex;align-items:center;gap:9px;font-size:14px;opacity:.72;margin-bottom:16px}
 .bts-coin b{color:#db9117;font-size:21px;opacity:1}
 .bts-quotes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .bts-price{display:flex;align-items:baseline;gap:8px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .bts-price .currency{font-size:20px;color:#a98345}.bts-price strong{font-size:clamp(21px,2.5vw,34px);font-weight:550;letter-spacing:-.7px}
-.bts-fx{font-size:clamp(19px,2.2vw,29px);font-weight:500;white-space:nowrap;letter-spacing:-.5px}
 .bts-reference{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12px;line-height:1.8;opacity:.67;font-variant-numeric:tabular-nums;margin:5px 0}
 .bts-reference b{font-size:13px;font-weight:550}.bts-reference span{display:inline-block}
 .bts-progress{height:3px;background:rgba(150,160,175,.14);border-radius:5px;overflow:hidden;margin:12px 0 7px}
@@ -561,21 +529,16 @@ def visible_quote(result, symbol=None):
     return quote["price"] if -300 <= age <= 900 else None
 
 
-def render_market(st, quotes, reference):
+def render_market(st, quotes):
     section_heading(st, "B")
     krw = visible_quote(quotes["upbit"], "BTC")
     usd = visible_quote(quotes["BTC"])
-    fx = reference["fx"].get("data")
-    if fx and not 0 <= (datetime.now(timezone.utc).date() - fx["date"]).days <= 7:
-        fx = None
     krw_text = "—" if krw is None else f"{krw:,.0f}"
     usd_text = "—" if usd is None else f"{usd:,.2f}"
-    fx_text = "—" if fx is None else f"{fx['rate']:,.2f}"
     st.markdown(f'''<div class="bts-market">
 <div class="bts-price-card"><div class="bts-coin"><b>₿</b> Bitcoin</div>
 <div class="bts-quotes"><div class="bts-price"><span class="currency" aria-label="KRW">₩</span><strong>{krw_text}</strong></div>
 <div class="bts-price"><span class="currency" aria-label="USD">$</span><strong>{usd_text}</strong></div></div></div>
-<div class="bts-price-card"><div class="bts-coin">$ / ₩</div><div class="bts-fx">$1 = ₩{fx_text}</div></div>
 </div>''', unsafe_allow_html=True)
 
 
@@ -635,10 +598,6 @@ def main():
     def bitcoin_quotes():
         return collect_public({"upbit": load_upbit, "BTC": lambda: load_usd("BTC-USD")})
 
-    @st.cache_data(ttl=3600, show_spinner=False, max_entries=1)
-    def exchange_reference():
-        return collect_public({"fx": load_fx})
-
     @st.cache_data(ttl=55, show_spinner=False, max_entries=1)
     def time_values():
         return fetch_time_snapshot(public_json)
@@ -649,14 +608,13 @@ def main():
     with refresh:
         if st.button("↻", help="새로고침", key="refresh_board"):
             bitcoin_quotes.clear()
-            exchange_reference.clear()
             time_values.clear()
     st.caption("save Bitcoin · trust Time · grow Self")
     st.markdown('<p class="bts-philosophy-ko" lang="ko">비트코인을 모으고, 시간의 힘을 믿으며, 스스로를 성장시킵니다.</p>', unsafe_allow_html=True)
 
     @st.fragment(run_every=60)
     def public_sections():
-        render_market(st, bitcoin_quotes(), exchange_reference())
+        render_market(st, bitcoin_quotes())
         render_time(st, time_values())
 
     public_sections()
