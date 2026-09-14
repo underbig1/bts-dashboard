@@ -448,6 +448,11 @@ COMPACT_STYLE = '''<style>
 .bts-price .currency{font-size:20px;color:#a98345}.bts-price strong{font-size:clamp(21px,2.5vw,34px);font-weight:550;letter-spacing:-.7px}
 .bts-reference{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12px;line-height:1.8;opacity:.67;font-variant-numeric:tabular-nums;margin:5px 0}
 .bts-reference b{font-size:13px;font-weight:550}.bts-reference span{display:inline-block}
+.stApp .bts-time-motto{max-width:700px;margin:10px 0 18px;padding:22px 24px;border-left:5px solid #f7931a;border-radius:4px 12px 12px 4px;background:#202d33;color:#fff;box-shadow:0 5px 18px #1220280d}
+.stApp .bts-time-motto p{margin:0;font-family:"Arial Black","Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:clamp(20px,2.6vw,30px);font-weight:900;line-height:1.5;letter-spacing:-.055em;word-break:keep-all;overflow-wrap:anywhere;color:#fff}
+.stApp .bts-motto-line{display:block}
+.stApp .bts-time-motto strong{color:#ffb442;font-size:inherit;font-weight:900}
+@media(max-width:440px){.stApp .bts-time-motto{padding:18px 16px}.stApp .bts-time-motto p{font-size:20px;line-height:1.55}}
 .bts-progress{height:3px;background:rgba(150,160,175,.14);border-radius:5px;overflow:hidden;margin:12px 0 7px}
 .bts-progress i{display:block;height:100%;background:#b89655}
 @media(max-width:700px){.bts-market{grid-template-columns:1fr}.bts-price-card{padding:18px 20px}.bts-price strong{font-size:28px}}
@@ -579,6 +584,13 @@ def render_time(st, snapshot):
     section_heading(st, "T")
     previous_height = st.session_state.get("bts_previous_height")
     st.markdown(block_track(snapshot, previous_height), unsafe_allow_html=True)
+    st.markdown(
+        '<aside class="bts-time-motto" aria-label="투자 슬로건"><p>'
+        '<span class="bts-motto-line"><strong>10년 이상</strong> 들고 가지 않을 자산은</span>'
+        '<span class="bts-motto-line"><strong>10분도</strong> 들고 있지 않겠다.</span>'
+        '</p></aside>',
+        unsafe_allow_html=True,
+    )
     if snapshot["recent_blocks"]:
         st.session_state["bts_previous_height"] = snapshot["recent_blocks"][0]["height"]
     parts = []
