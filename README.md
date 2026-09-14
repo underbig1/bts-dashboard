@@ -2,7 +2,7 @@
 
 Bitcoin · Time · Self를 함께 살펴보는 개인 대시보드입니다.
 
-[BTS 투자철학 열기](https://bts-investment-philosophy.streamlit.app/)
+[BTS 투자철학 열기](https://bts-investment-philosophy-app.streamlit.app/)
 
 - **B:** 비트코인·테더 가격, 원/달러 환율, 한국·미국 기준금리 — 연결 예정
 - **T:** 멤풀 진행 화면과 반감기 현황 — 연결 예정
