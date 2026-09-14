@@ -460,6 +460,7 @@ def block_track(snapshot, previous_height=None):
 
 COMPACT_STYLE = '''<style>
 .block-container{padding-top:2rem!important;padding-bottom:2rem!important}
+.stApp .bts-philosophy-ko{font-size:28px;font-weight:400;line-height:1.55;letter-spacing:-.04em;margin:4px 0 16px;word-break:keep-all;overflow-wrap:anywhere;color:inherit;opacity:.8}
 .bts-market{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;margin:8px 0 12px}
 .bts-price-card{border:1px solid rgba(128,140,158,.22);border-radius:16px;padding:22px 24px;background:rgba(128,140,158,.025);min-width:0}
 .bts-coin{display:flex;align-items:center;gap:9px;font-size:14px;opacity:.72;margin-bottom:16px}
@@ -651,6 +652,7 @@ def main():
             exchange_reference.clear()
             time_values.clear()
     st.caption("save Bitcoin · trust Time · grow Self")
+    st.markdown('<p class="bts-philosophy-ko" lang="ko">비트코인을 모으고, 시간의 힘을 믿으며, 스스로를 성장시킵니다.</p>', unsafe_allow_html=True)
 
     @st.fragment(run_every=60)
     def public_sections():
