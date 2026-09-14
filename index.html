@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#243438">
+  <meta name="description" content="save Bitcoin · trust Time · grow Self">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="BTS">
+  <title>BTS investment philosophy</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="1254x1254" href="./bts-icon.png">
+  <link rel="apple-touch-icon" href="./bts-icon.png">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #fff; color: #243438; font-family: system-ui, sans-serif; }
+    body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-top: env(safe-area-inset-top); }
+    main { position: relative; flex: 1; min-height: 0; }
+    iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+    .install-bar { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 8px max(16px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); border-top: 1px solid #e8e6df; background: #fbfaf6; }
+    .brand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+    .brand img { width: 30px; height: 30px; border-radius: 50%; }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; background: #243438; color: white; font: inherit; font-size: 13px; cursor: pointer; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #c78a32; outline-offset: 3px; }
+    button:disabled { opacity: .6; cursor: wait; }
+    dialog { width: min(390px, calc(100% - 32px)); border: 1px solid #e8e6df; border-radius: 16px; padding: 24px; color: #243438; }
+    dialog::backdrop { background: #14232766; }
+    dialog img { display: block; width: 84px; height: 84px; margin: 0 auto 16px; }
+    dialog h1 { margin: 0 0 16px; font-size: 20px; text-align: center; }
+    dialog p, dialog li { font-size: 14px; line-height: 1.7; }
+    dialog ol { padding-left: 22px; }
+    dialog form { text-align: right; margin-top: 20px; }
+    a { color: #365c49; }
+    .connection { position: absolute; inset: 0; display: grid; place-content: center; padding: 24px; text-align: center; background: #fff; }
+    .connection p { line-height: 1.7; }
+    [hidden] { display: none !important; }
+    @media (display-mode: standalone), (display-mode: fullscreen) { .install-bar { display: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <iframe id="dashboard" title="BTS investment philosophy 대시보드" src="https://bts-investment-philosophy-app.streamlit.app/?embed=true" allow="fullscreen; clipboard-write"></iframe>
+    <section id="offline" class="connection" hidden role="status">
+      <h1>인터넷 연결을 확인해 주세요</h1>
+      <p>대시보드는 인터넷에 연결되어 있어야 볼 수 있습니다.</p>
+      <button id="retry" type="button">다시 연결</button>
+    </section>
+  </main>
+  <footer class="install-bar" id="install-bar">
+    <span class="brand"><img src="./bts-icon.png" alt="">BTS</span>
+    <button id="install" type="button">홈 화면에 추가</button>
+  </footer>
+  <dialog id="install-help" aria-labelledby="help-title">
+    <img src="./bts-icon.png" alt="BTS 정식 아이콘">
+    <h1 id="help-title">홈 화면에 추가</h1>
+    <p>갤럭시에서는 이 링크를 <strong>Chrome</strong>으로 열어 주세요.</p>
+    <ol>
+      <li>Chrome 오른쪽 위 <strong>⋮</strong> 메뉴를 누릅니다.</li>
+      <li><strong>홈 화면에 추가</strong> 또는 <strong>설치</strong> 항목을 선택합니다. 버전에 따라 ‘설치 및 바로가기 만들기’ 안에 있습니다.</li>
+      <li>BTS 아이콘을 확인한 뒤 설치를 누릅니다.</li>
+    </ol>
+    <p>아이폰은 Safari의 공유 메뉴에서 ‘홈 화면에 추가’를 선택하세요.</p>
+    <p><a href="https://bts-investment-philosophy-app.streamlit.app/" target="_blank" rel="noopener">대시보드 직접 열기</a></p>
+    <form method="dialog"><button>닫기</button></form>
+  </dialog>
+  <script>
+    const installButton = document.getElementById('install');
+    const installBar = document.getElementById('install-bar');
+    const help = document.getElementById('install-help');
+    const offline = document.getElementById('offline');
+    const dashboard = document.getElementById('dashboard');
+    const standalone = window.matchMedia('(display-mode: standalone)');
+    let installPrompt = null;
+    function updateDisplayMode() {
+      installBar.hidden = standalone.matches || window.navigator.standalone === true;
+    }
+    updateDisplayMode();
+    standalone.addEventListener('change', updateDisplayMode);
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      installPrompt = event;
+      installButton.textContent = '설치';
+      installButton.dataset.installReady = 'true';
+      if (help.open) help.close();
+    });
+    installButton.addEventListener('click', async () => {
+      if (!installPrompt) { help.showModal(); return; }
+      const prompt = installPrompt;
+      installPrompt = null;
+      installButton.disabled = true;
+      try {
+        await prompt.prompt();
+        await prompt.userChoice;
+      } catch (_) {
+        help.showModal();
+      } finally {
+        installButton.disabled = false;
+        installButton.textContent = '홈 화면에 추가';
+        delete installButton.dataset.installReady;
+      }
+    });
+    window.addEventListener('appinstalled', () => {
+      installPrompt = null;
+      installBar.hidden = true;
+      if (help.open) help.close();
+    });
+    function updateConnection() {
+      offline.hidden = navigator.onLine;
+      dashboard.hidden = !navigator.onLine;
+    }
+    window.addEventListener('offline', updateConnection);
+    window.addEventListener('online', () => {
+      updateConnection();
+      dashboard.src = 'https://bts-investment-philosophy-app.streamlit.app/?embed=true';
+    });
+    document.getElementById('retry').addEventListener('click', () => location.reload());
+    updateConnection();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

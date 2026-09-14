@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "BTS investment philosophy",
+  "short_name": "BTS",
+  "description": "save Bitcoin · trust Time · grow Self",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#243438",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "./bts-icon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
