@@ -1,5 +1,6 @@
 """BTS 투자철학: Bitcoin, Time and read-only Notion Self cards."""
 import json
+from base64 import b64encode
 from html import escape
 from pathlib import Path
 import socket
@@ -449,6 +450,7 @@ COMPACT_STYLE = '''<style>
 BRAND_STYLE = '''<style>
 .stApp .bts-section{font-size:26px;font-weight:500;line-height:1.3;letter-spacing:-.6px;margin:1.15rem 0 .85rem;padding:0 0 12px;border-bottom:1px solid rgba(128,140,158,.27);color:inherit}
 .stApp .bts-section .bts-section-initial{font-size:2em;font-weight:760;line-height:.9;letter-spacing:-1.6px;vertical-align:baseline}
+.stApp .bts-section .bts-section-icon{display:inline-block;width:40px;height:40px;max-width:none;vertical-align:-4px;margin-right:12px}
 .bts-section-b .bts-section-initial{color:#e88c23}
 .bts-section-t .bts-section-initial{color:#597889}
 .bts-section-s .bts-section-initial{color:#548255}
@@ -468,15 +470,38 @@ BRAND_STYLE = '''<style>
 </style>'''
 
 
+SECTION_ICONS = {
+    "B": '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
+         '<circle cx="24" cy="24" r="23" fill="#f7931a"/>'
+         '<g transform="rotate(13 24 24)" fill="none" stroke="#fff" stroke-width="3.2" stroke-linejoin="round">'
+         '<path d="M16 14h10a5 5 0 0 1 0 10H16m3 0h8a5 5 0 0 1 0 10H16M20 14v20M23 10v4m5-4v4M23 34v4m5-4v4"/>'
+         '</g></svg>',
+    "T": '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
+         '<circle cx="24" cy="24" r="23" fill="#e9f0f5"/>'
+         '<g fill="none" stroke="#597889" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
+         '<circle cx="24" cy="24" r="15"/><path d="M24 14v10l7 4"/></g>'
+         '<circle cx="24" cy="24" r="2" fill="#597889"/></svg>',
+    "S": '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
+         '<circle cx="24" cy="24" r="23" fill="#edf3e8"/>'
+         '<path d="M24 36V25" fill="none" stroke="#548255" stroke-width="2.6" stroke-linecap="round"/>'
+         '<path d="M24 28C13 29 10 22 11 16c9-1 15 4 13 12Z" fill="#84a96b"/>'
+         '<path d="M24 24C23 15 29 10 38 12c0 9-6 14-14 12Z" fill="#548255"/>'
+         '<path d="M24 29l-7-7m7 5 8-9M16 37h16" fill="none" stroke="#416943" stroke-width="2" stroke-linecap="round"/>'
+         '</svg>',
+}
+
+
 def section_heading(st, section):
-    """Render the exact philosophy phrase with a double-size B, T or S."""
+    """Pair each philosophy phrase with its icon and emphasized initial."""
     prefix, initial, tail, slug = {
         "B": ("save", "B", "itcoin", "b-bitcoin"),
         "T": ("trust", "T", "ime", "t-time"),
         "S": ("grow", "S", "elf", "s-self"),
     }[section]
+    icon = b64encode(SECTION_ICONS[section].encode("utf-8")).decode("ascii")
     st.markdown(
         f'<h2 class="bts-section bts-section-{section.lower()}" id="{slug}">'
+        f'<img class="bts-section-icon" src="data:image/svg+xml;base64,{icon}" width="40" height="40" alt="" aria-hidden="true">'
         f'{prefix} <span class="bts-section-initial">{initial}</span>{tail}</h2>',
         unsafe_allow_html=True,
     )
