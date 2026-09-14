@@ -113,10 +113,10 @@ TIME_ENDPOINTS = {
 }
 
 
-def fetch_bytes(url):
+def fetch_bytes(url, timeout=15):
     request = Request(url, headers={"User-Agent": "BTS-investment-philosophy/1.0"})
     try:
-        with urlopen(request, timeout=15) as response:
+        with urlopen(request, timeout=timeout) as response:
             body = response.read(MAX_BYTES + 1)
     except (HTTPError, URLError, TimeoutError, OSError):
         raise ValueError("공개 데이터 제공처에 연결할 수 없습니다.") from None
@@ -447,12 +447,68 @@ def fetch_time_snapshot(public_fetch, now=None):
     return result
 
 
+
+BIS_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.KR?lastNObservations=1"
+BIS_SOURCE_URL = "https://data.bis.org/topics/CBPOL/BIS%2CWS_CBPOL%2C1.0/D.KR"
+
+
+def parse_bis(body, today=None):
+    today = today or date.today()
+    try:
+        root = ET.fromstring(body)
+    except (ET.ParseError, ValueError, TypeError):
+        raise ValueError("BIS 금리 자료 형식을 확인할 수 없습니다.") from None
+    references = [item for item in root.iter() if item.tag.rsplit("}", 1)[-1] == "Ref"]
+    if not any(item.get("agencyID") == "BIS" and item.get("id") == "WS_CBPOL" for item in references):
+        raise ValueError("BIS 기준금리 자료인지 확인할 수 없습니다.")
+    datasets = [item for item in root.iter() if item.tag.rsplit("}", 1)[-1] == "DataSet"]
+    matches = []
+    for dataset in datasets:
+        for series in dataset:
+            if (series.tag.rsplit("}", 1)[-1] == "Series"
+                    and series.get("FREQ") == "D" and series.get("REF_AREA") == "KR"):
+                matches.append((dataset, series))
+    if len(matches) != 1:
+        raise ValueError("BIS 한국 일별 기준금리 자료가 없거나 중복되었습니다.")
+    dataset, series = matches[0]
+    if dataset.get("UNIT_MULT") != "0" or dataset.get("UNIT_MEASURE") != "368":
+        raise ValueError("BIS 금리 단위를 확인할 수 없습니다.")
+    observations = {}
+    for observation in series:
+        if observation.tag.rsplit("}", 1)[-1] != "Obs":
+            continue
+        for node in (series, observation):
+            if (node.get("UNIT_MULT", "0") != "0"
+                    or node.get("UNIT_MEASURE", "368") != "368"):
+                raise ValueError("BIS 금리 단위가 일치하지 않습니다.")
+        try:
+            observed_date = date.fromisoformat(observation.attrib["TIME_PERIOD"])
+            rate = float(observation.attrib["OBS_VALUE"])
+        except (KeyError, ValueError, TypeError, OverflowError):
+            raise ValueError("BIS 금리 값 또는 기준일을 확인할 수 없습니다.") from None
+        if observed_date > today or not math.isfinite(rate) or not -5 <= rate <= 40:
+            raise ValueError("BIS 금리 값 또는 기준일의 범위를 확인할 수 없습니다.")
+        if observed_date in observations:
+            raise ValueError("BIS 금리 기준일이 중복되었습니다.")
+        observations[observed_date] = rate
+    if not observations:
+        raise ValueError("BIS 금리 관측값이 없습니다.")
+    latest = max(observations)
+    return {"rate": observations[latest], "date": latest.isoformat(),
+            "date_kind": "observation", "source": BIS_SOURCE_URL,
+            "provider": "BIS", "stale": (today - latest).days > 10}
+
+
 def public_json(url):
     return _json_body(fetch_bytes(url))
 
 
 def load_bok():
-    return parse_bok(fetch_bytes(BOK_URL).decode("utf-8"), today=datetime.now(ZoneInfo("Asia/Seoul")).date())
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
+    try:
+        return parse_bok(fetch_bytes(BOK_URL, timeout=5).decode("utf-8"), today=today)
+    except Exception:
+        return parse_bis(fetch_bytes(BIS_URL), today=today)
 
 
 def load_us_policy():
@@ -585,7 +641,14 @@ def render_market(st, quotes, reference):
             st.metric("한국 기준금리", "—" if data is None else f"{data['rate']:.2f}%")
             st.caption("한국은행 기준금리 · 연율")
             if data is not None:
-                st.caption(f"최근 변경 {data['date']}")
+                if data.get("provider") == "BIS":
+                    st.caption(f"자료 기준 {data['date']} · BIS(한국은행 제공)")
+                    st.caption("한국은행 직접 연결 지연으로 공식 대체 자료를 표시합니다.")
+                    if data["stale"]:
+                        st.warning("대체 자료의 기준일이 10일 이상 지났습니다. 최신 결정은 한국은행 출처를 확인해 주세요.")
+                    st.caption(f"[BIS 자료 출처]({data['source']})")
+                else:
+                    st.caption(f"최근 변경 {data['date']}")
                 st.caption(f"조회 {kst_time(result['checked_at'])}")
             else:
                 public_missing(st, "한국 기준금리")
