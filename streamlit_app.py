@@ -422,7 +422,7 @@ def block_track(snapshot, previous_height=None):
     .bts-cube-front{position:absolute;inset:0;background:linear-gradient(145deg,var(--bts-front),var(--bts-right));border:1px solid #ffffff24;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#fff;box-sizing:border-box;gap:3px;z-index:3}
     .bts-cube-top{position:absolute;bottom:100%;left:0;width:100%;height:27%;background:linear-gradient(100deg,var(--bts-top),var(--bts-front));transform:skewX(-45deg);transform-origin:left bottom;border-top:1px solid #ffffff44;box-sizing:border-box}
     .bts-cube-right{position:absolute;left:100%;top:0;width:27%;height:100%;background:var(--bts-right);transform:skewY(-45deg);transform-origin:left top;border-right:1px solid #0c203433;box-sizing:border-box}
-    .bts-cube-front strong{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:clamp(10px,2.1cqw,15px);font-weight:700;letter-spacing:-.025em;white-space:nowrap;line-height:1.25}
+    .bts-cube-front strong{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:clamp(11px,3.1cqw,16px);font-weight:700;letter-spacing:-.025em;white-space:nowrap;line-height:1.25}
     .bts-cube-mark{font:500 clamp(9px,1.7cqw,12.5px)/1.1 system-ui,sans-serif;opacity:.9}
     .bts-cube-front small{font:500 clamp(8px,1.5cqw,11.5px)/1 system-ui,sans-serif;opacity:.8}
     .bts-cube-pending{--bts-front:#d4a348;--bts-top:#f2d390;--bts-right:#a77426;animation:bts-pool-float 5s ease-in-out var(--bts-phase,0s) infinite}
