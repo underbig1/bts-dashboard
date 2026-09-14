@@ -1,6 +1,5 @@
 """BTS 투자철학: Bitcoin, Time and read-only Notion Self cards."""
 import json
-import base64
 from html import escape
 from pathlib import Path
 import socket
@@ -546,32 +545,10 @@ def render_record_cards(st, records):
                     unsafe_allow_html=True)
 
 
-def render_cover(st):
-    """Use the supplied, unmodified artwork as an accessible entry button."""
-    cover = Path(__file__).with_name("Codex 이미지 2026년 9월 14일 오후 04_23_51.png")
-    if not cover.is_file():
-        return False
-    if st.session_state.get("board_open"):
-        return False
-    image_data = base64.b64encode(cover.read_bytes()).decode("ascii")
-    st.markdown(f'''<style>
-.stApp{{background:#fbf8f0}}
-.block-container{{max-width:1700px;padding:10vh 16px 4vh!important}}
-.bts-cover-name{{text-align:center;font-size:15px;letter-spacing:.06em;color:#34434a;margin:0 0 24px}}
-.st-key-enter_dashboard button{{display:block;width:100%;height:auto;aspect-ratio:3/1;min-height:0;padding:0;border:0;border-radius:0;background:#fbf8f0 url("data:image/png;base64,{image_data}") center/contain no-repeat;box-shadow:none;cursor:pointer;transition:filter .25s ease}}
-.st-key-enter_dashboard button:hover{{background-color:#fbf8f0;filter:brightness(1.035);border:0}}
-.st-key-enter_dashboard button:focus-visible{{outline:3px solid #d28b2b;outline-offset:6px}}
-.st-key-enter_dashboard button p{{opacity:0}}
-.bts-cover-hint{{text-align:center;font-size:13px;letter-spacing:.04em;color:#526057;margin:24px 0 0}}
-@media(max-width:600px){{.block-container{{padding-top:17vh!important}}.bts-cover-name{{font-size:14px;margin-bottom:28px}}}}
-@media(prefers-reduced-motion:reduce){{.st-key-enter_dashboard button{{transition:none}}}}
-</style><p class="bts-cover-name">BTS 투자철학</p>''', unsafe_allow_html=True)
-    if st.button("대시보드 열기", key="enter_dashboard", use_container_width=True):
-        st.session_state["board_open"] = True
-        st.rerun()
-    st.markdown('<p class="bts-cover-hint">대시보드 열기 →</p>', unsafe_allow_html=True)
-    return True
-
+def render_banner(st):
+    banner = Path(__file__).with_name("Codex 이미지 2026년 9월 14일 오후 04_23_51.png")
+    if banner.is_file():
+        st.image(str(banner), use_container_width=True)
 
 
 def visible_quote(result, symbol=None):
@@ -649,10 +626,9 @@ def render_self(st):
 
 def main():
     import streamlit as st
-    st.set_page_config(page_title="BTS 투자철학", page_icon="🌱", layout="wide")
+    st.set_page_config(page_title="BTS investment philosophy", page_icon="🌱", layout="wide")
     st.markdown(COMPACT_STYLE + BRAND_STYLE, unsafe_allow_html=True)
-    if render_cover(st):
-        return
+    render_banner(st)
 
     @st.cache_data(ttl=55, show_spinner=False, max_entries=1)
     def bitcoin_quotes():
@@ -668,7 +644,7 @@ def main():
 
     heading, refresh = st.columns([10, 1])
     with heading:
-        st.title("BTS 투자철학")
+        st.title("BTS investment philosophy")
     with refresh:
         if st.button("↻", help="새로고침", key="refresh_board"):
             bitcoin_quotes.clear()
@@ -683,10 +659,7 @@ def main():
 
     public_sections()
     render_self(st)
-    if Path(__file__).with_name("Codex 이미지 2026년 9월 14일 오후 04_23_51.png").is_file():
-        if st.button("← 처음으로", key="back_to_cover"):
-            st.session_state["board_open"] = False
-            st.rerun()
+
 
 
 if __name__ == "__main__":
