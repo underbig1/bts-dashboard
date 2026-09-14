@@ -548,7 +548,7 @@ def render_record_cards(st, records):
 
 def render_cover(st):
     """Use the supplied, unmodified artwork as an accessible entry button."""
-    cover = Path(__file__).with_name("bts-cover.png")
+    cover = Path(__file__).with_name("Codex 이미지 2026년 9월 14일 오후 04_23_51.png")
     if not cover.is_file():
         return False
     if st.session_state.get("board_open"):
@@ -683,7 +683,7 @@ def main():
 
     public_sections()
     render_self(st)
-    if Path(__file__).with_name("bts-cover.png").is_file():
+    if Path(__file__).with_name("Codex 이미지 2026년 9월 14일 오후 04_23_51.png").is_file():
         if st.button("← 처음으로", key="back_to_cover"):
             st.session_state["board_open"] = False
             st.rerun()
