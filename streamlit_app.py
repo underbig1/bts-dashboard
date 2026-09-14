@@ -1,5 +1,8 @@
 """BTS 투자철학: Bitcoin, Time and read-only Notion Self cards."""
 import json
+import base64
+from html import escape
+from pathlib import Path
 import socket
 from datetime import datetime
 from urllib.error import HTTPError, URLError
@@ -475,6 +478,102 @@ COMPACT_STYLE = '''<style>
 </style>'''
 
 
+BRAND_STYLE = '''<style>
+.stApp .bts-section{font-size:26px;font-weight:500;line-height:1.3;letter-spacing:-.6px;margin:1.15rem 0 .85rem;padding:0 0 12px;border-bottom:1px solid rgba(128,140,158,.27);color:inherit}
+.stApp .bts-section .bts-section-initial{font-size:2em;font-weight:760;line-height:.9;letter-spacing:-1.6px;vertical-align:baseline}
+.bts-section-b .bts-section-initial{color:#e88c23}
+.bts-section-t .bts-section-initial{color:#597889}
+.bts-section-s .bts-section-initial{color:#548255}
+.bts-record-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start;margin:12px 0 18px}
+.bts-record-card{--bts-tint:rgba(128,140,158,.07);--bts-edge:rgba(128,140,158,.22);min-width:0;border:1px solid var(--bts-edge);border-radius:12px;padding:20px;background:var(--bts-tint);color:inherit}
+.bts-record-reading{--bts-tint:rgba(221,177,87,.13);--bts-edge:rgba(190,148,59,.24)}
+.bts-record-fitness{--bts-tint:rgba(111,161,107,.12);--bts-edge:rgba(101,151,96,.24)}
+.bts-record-project{--bts-tint:rgba(93,145,188,.12);--bts-edge:rgba(88,139,179,.24)}
+.stApp .bts-record-title{font-size:19.6px;font-weight:600;line-height:1.45;letter-spacing:-.35px;color:inherit;margin:0 0 12px;padding:0;overflow-wrap:anywhere;word-break:keep-all}
+.bts-record-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-bottom:12px;font-size:12px;line-height:1.5}
+.bts-record-category{display:inline-block;padding:3px 8px;border-radius:4px;background:var(--bts-tint);border:1px solid var(--bts-edge)}
+.bts-record-status{opacity:.65}
+.bts-record-note,.bts-record-goal{font-size:15px;line-height:1.7;white-space:pre-line;overflow-wrap:anywhere;word-break:keep-all;margin:0}
+.bts-record-goal-label{font-size:11px;opacity:.6;margin:15px 0 4px}
+@media(max-width:850px){.bts-record-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.bts-record-grid{grid-template-columns:1fr}.bts-record-card{padding:18px}}
+</style>'''
+
+
+def section_heading(st, section):
+    """Render the exact philosophy phrase with a double-size B, T or S."""
+    prefix, initial, tail, slug = {
+        "B": ("save", "B", "itcoin", "b-bitcoin"),
+        "T": ("trust", "T", "ime", "t-time"),
+        "S": ("grow", "S", "elf", "s-self"),
+    }[section]
+    st.markdown(
+        f'<h2 class="bts-section bts-section-{section.lower()}" id="{slug}">'
+        f'{prefix} <span class="bts-section-initial">{initial}</span>{tail}</h2>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_record_cards(st, records):
+    """Keep record order and content while escaping all Notion-authored HTML."""
+    styles = {"독서": "reading", "운동": "fitness", "프로젝트": "project"}
+    cards = []
+    for record in records:
+        category = str(record.get("category") or "")
+        status = str(record.get("status") or "")
+        title = escape(str(record.get("title") or "이름 없는 활동"))
+        note = str(record.get("note") or "")
+        goal = str(record.get("next_goal") or "")
+        style = styles.get(category.strip(), "neutral")
+        content = [f'<article class="bts-record-card bts-record-{style}">',
+                   f'<h3 class="bts-record-title">{title}</h3>']
+        if category or status:
+            content.append('<div class="bts-record-meta">')
+            if category:
+                content.append(f'<span class="bts-record-category">{escape(category)}</span>')
+            if status:
+                content.append(f'<span class="bts-record-status">{escape(status)}</span>')
+            content.append('</div>')
+        if note:
+            content.append(f'<p class="bts-record-note">{escape(note)}</p>')
+        if goal:
+            content.append('<div class="bts-record-goal-label">다음 목표</div>')
+            content.append(f'<p class="bts-record-goal">{escape(goal)}</p>')
+        content.append('</article>')
+        cards.append(''.join(content))
+    if cards:
+        st.markdown('<div class="bts-record-grid">' + ''.join(cards) + '</div>',
+                    unsafe_allow_html=True)
+
+
+def render_cover(st):
+    """Use the supplied, unmodified artwork as an accessible entry button."""
+    cover = Path(__file__).with_name("bts-cover.png")
+    if not cover.is_file():
+        return False
+    if st.session_state.get("board_open"):
+        return False
+    image_data = base64.b64encode(cover.read_bytes()).decode("ascii")
+    st.markdown(f'''<style>
+.stApp{{background:#fbf8f0}}
+.block-container{{max-width:1700px;padding:10vh 16px 4vh!important}}
+.bts-cover-name{{text-align:center;font-size:15px;letter-spacing:.06em;color:#34434a;margin:0 0 24px}}
+.st-key-enter_dashboard button{{display:block;width:100%;height:auto;aspect-ratio:3/1;min-height:0;padding:0;border:0;border-radius:0;background:#fbf8f0 url("data:image/png;base64,{image_data}") center/contain no-repeat;box-shadow:none;cursor:pointer;transition:filter .25s ease}}
+.st-key-enter_dashboard button:hover{{background-color:#fbf8f0;filter:brightness(1.035);border:0}}
+.st-key-enter_dashboard button:focus-visible{{outline:3px solid #d28b2b;outline-offset:6px}}
+.st-key-enter_dashboard button p{{opacity:0}}
+.bts-cover-hint{{text-align:center;font-size:13px;letter-spacing:.04em;color:#526057;margin:24px 0 0}}
+@media(max-width:600px){{.block-container{{padding-top:17vh!important}}.bts-cover-name{{font-size:14px;margin-bottom:28px}}}}
+@media(prefers-reduced-motion:reduce){{.st-key-enter_dashboard button{{transition:none}}}}
+</style><p class="bts-cover-name">BTS 투자철학</p>''', unsafe_allow_html=True)
+    if st.button("대시보드 열기", key="enter_dashboard", use_container_width=True):
+        st.session_state["board_open"] = True
+        st.rerun()
+    st.markdown('<p class="bts-cover-hint">대시보드 열기 →</p>', unsafe_allow_html=True)
+    return True
+
+
+
 def visible_quote(result, symbol=None):
     data = result.get("data")
     if data is None:
@@ -485,7 +584,7 @@ def visible_quote(result, symbol=None):
 
 
 def render_market(st, quotes, reference):
-    st.header("B · Save Bitcoin", divider="gray")
+    section_heading(st, "B")
     krw = visible_quote(quotes["upbit"], "BTC")
     usd = visible_quote(quotes["BTC"])
     fx = reference["fx"].get("data")
@@ -503,7 +602,7 @@ def render_market(st, quotes, reference):
 
 
 def render_time(st, snapshot):
-    st.header("T · Trust Time", divider="gray")
+    section_heading(st, "T")
     previous_height = st.session_state.get("bts_previous_height")
     st.markdown(block_track(snapshot, previous_height), unsafe_allow_html=True)
     if snapshot["recent_blocks"]:
@@ -527,7 +626,7 @@ def render_time(st, snapshot):
 
 
 def render_self(st):
-    st.header("S · Grow Self", divider="gray")
+    section_heading(st, "S")
     try:
         token = str(st.secrets.get("NOTION_TOKEN", "")).strip()
         source_id = str(st.secrets.get("NOTION_DATA_SOURCE_ID", "")).strip()
@@ -545,23 +644,15 @@ def render_self(st):
     if not records:
         st.caption("표시할 기록이 없습니다.")
         return
-    columns = st.columns(3)
-    for index, record in enumerate(records):
-        with columns[index % 3]:
-            with st.container(border=True):
-                st.subheader(record["title"])
-                st.caption(" · ".join(filter(None, [record["category"], record["status"]])))
-                if record["note"]:
-                    st.text(record["note"])
-                if record["next_goal"]:
-                    st.caption("다음 목표")
-                    st.text(record["next_goal"])
+    render_record_cards(st, records)
 
 
 def main():
     import streamlit as st
     st.set_page_config(page_title="BTS 투자철학", page_icon="🌱", layout="wide")
-    st.markdown(COMPACT_STYLE, unsafe_allow_html=True)
+    st.markdown(COMPACT_STYLE + BRAND_STYLE, unsafe_allow_html=True)
+    if render_cover(st):
+        return
 
     @st.cache_data(ttl=55, show_spinner=False, max_entries=1)
     def bitcoin_quotes():
@@ -583,7 +674,7 @@ def main():
             bitcoin_quotes.clear()
             exchange_reference.clear()
             time_values.clear()
-    st.caption("Save Bitcoin · Trust Time · Grow Self")
+    st.caption("save Bitcoin · trust Time · grow Self")
 
     @st.fragment(run_every=60)
     def public_sections():
@@ -592,6 +683,10 @@ def main():
 
     public_sections()
     render_self(st)
+    if Path(__file__).with_name("bts-cover.png").is_file():
+        if st.button("← 처음으로", key="back_to_cover"):
+            st.session_state["board_open"] = False
+            st.rerun()
 
 
 if __name__ == "__main__":
