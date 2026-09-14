@@ -380,50 +380,58 @@ def block_track(snapshot, previous_height=None):
             pending[position] = (count, block.get("is_aggregate") is True)
 
     cards = []
-    for height in sorted(mined, reverse=True)[:3][::-1]:
+    for height in sorted(mined, reverse=True)[:2][::-1]:
         entrance = " bts-cube-new" if previous_height is not None and height > previous_height else ""
+        block_id = mined[height].get("id")
+        block_ref = block_id if (isinstance(block_id, str) and len(block_id) == 64
+                                 and all(char in "0123456789abcdef" for char in block_id)) else str(height)
+        url = "https://mempool.space/block/" + block_ref
         cards.append(
-            f'<div class="bts-cube-slot"><div class="bts-cube bts-cube-mined{entrance}" '
-            f'role="img" aria-label="확정 블록 {height:,}">'
+            f'<div class="bts-cube-slot"><a class="bts-cube bts-cube-mined{entrance}" '
+            f'href="{url}" target="_blank" rel="noopener noreferrer" '
+            f'aria-label="확정 블록 {height:,} · 멤풀 상세 보기 (새 탭)" title="확정 블록 #{height} · 멤풀 상세 보기">'
             '<i class="bts-cube-top" aria-hidden="true"></i>'
             '<i class="bts-cube-right" aria-hidden="true"></i>'
             f'<div class="bts-cube-front"><span class="bts-cube-mark" aria-hidden="true">✓</span>'
-            f'<strong>#{height:,}</strong></div></div></div>'
+            f'<strong>#{height}</strong></div></a></div>'
         )
     if cards and pending:
         cards.append('<span class="bts-cube-divider" aria-hidden="true"></span>')
-    for index, position in enumerate(sorted(pending)[:3]):
+    for index, position in enumerate(sorted(pending)[:2]):
         count, aggregate = pending[position]
         qualifier = "대기 묶음" if aggregate else "대기"
         cards.append(
-            f'<div class="bts-cube-slot"><div class="bts-cube bts-cube-pending" '
-            f'style="--bts-phase:{-index * 1.3}s" role="img" '
-            f'aria-label="{position}번째 {qualifier}, 거래 {count:,}건">'
+            f'<div class="bts-cube-slot"><a class="bts-cube bts-cube-pending" '
+            f'href="https://mempool.space/mempool-block/{position - 1}" target="_blank" rel="noopener noreferrer" '
+            f'style="--bts-phase:{-index * 1.3}s" '
+            f'aria-label="{position}번째 {qualifier}, 거래 {count:,}건 · 멤풀 상세 보기 (새 탭)" title="{position}번째 예상 블록 · 멤풀 상세 보기">'
             '<i class="bts-cube-top" aria-hidden="true"></i>'
             '<i class="bts-cube-right" aria-hidden="true"></i>'
-            f'<div class="bts-cube-front"><span class="bts-cube-mark">{qualifier}</span>'
-            f'<strong>{count:,}</strong><small>tx</small></div></div></div>'
+            f'<div class="bts-cube-front"><span class="bts-cube-mark">{qualifier} {position}</span>'
+            f'<strong>{count:,}</strong><small>tx</small></div></a></div>'
         )
     if not cards:
         cards.append('<span class="bts-cubes-empty" role="status">—</span>')
     return '''<style>
     .bts-cubes-wrap{container-type:inline-size;width:100%;overflow:hidden}
-    .bts-cubes{display:flex;align-items:center;gap:clamp(3px,1.2%,12px);width:100%;max-width:700px;min-height:132px;padding:29px 4px 19px;box-sizing:border-box}
-    .bts-cube-slot{flex:1 1 0;min-width:0;max-width:104px}
-    .bts-cube{position:relative;width:77%;aspect-ratio:1;isolation:isolate;filter:drop-shadow(2px 7px 5px #0d294819);transform-origin:center;--bts-front:#3979b6;--bts-top:#75acd9;--bts-right:#245582}
+    .bts-cubes{display:flex;align-items:center;gap:clamp(3px,1.2%,12px);width:100%;max-width:700px;min-height:152px;padding:34px 4px 22px;box-sizing:border-box}
+    .bts-cube-slot{flex:1 1 0;min-width:0;max-width:119.6px}
+    .bts-cube{display:block;position:relative;width:77%;aspect-ratio:1;isolation:isolate;filter:drop-shadow(2px 7px 5px #0d294819);transform-origin:center;text-decoration:none!important;cursor:pointer;-webkit-tap-highlight-color:transparent;--bts-front:#3979b6;--bts-top:#75acd9;--bts-right:#245582}
+    .bts-cube:hover .bts-cube-front{filter:brightness(1.12)}
+    .bts-cube:focus-visible .bts-cube-front{outline:3px solid #fff;outline-offset:-5px}
     .bts-cube-front{position:absolute;inset:0;background:linear-gradient(145deg,var(--bts-front),var(--bts-right));border:1px solid #ffffff24;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#fff;box-sizing:border-box;gap:3px;z-index:3}
     .bts-cube-top{position:absolute;bottom:100%;left:0;width:100%;height:27%;background:linear-gradient(100deg,var(--bts-top),var(--bts-front));transform:skewX(-45deg);transform-origin:left bottom;border-top:1px solid #ffffff44;box-sizing:border-box}
     .bts-cube-right{position:absolute;left:100%;top:0;width:27%;height:100%;background:var(--bts-right);transform:skewY(-45deg);transform-origin:left top;border-right:1px solid #0c203433;box-sizing:border-box}
-    .bts-cube-front strong{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:clamp(8px,1.7cqw,13px);font-weight:600;letter-spacing:-.055em;white-space:nowrap;line-height:1.25}
-    .bts-cube-mark{font:500 clamp(8px,1.5cqw,11px)/1.1 system-ui,sans-serif;opacity:.85}
-    .bts-cube-front small{font:500 clamp(7px,1.3cqw,10px)/1 system-ui,sans-serif;opacity:.75}
+    .bts-cube-front strong{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:clamp(10px,2.1cqw,15px);font-weight:700;letter-spacing:-.025em;white-space:nowrap;line-height:1.25}
+    .bts-cube-mark{font:500 clamp(9px,1.7cqw,12.5px)/1.1 system-ui,sans-serif;opacity:.9}
+    .bts-cube-front small{font:500 clamp(8px,1.5cqw,11.5px)/1 system-ui,sans-serif;opacity:.8}
     .bts-cube-pending{--bts-front:#d4a348;--bts-top:#f2d390;--bts-right:#a77426;animation:bts-pool-float 5s ease-in-out var(--bts-phase,0s) infinite}
     .bts-cube-divider{flex:0 0 1px;height:54px;background:linear-gradient(transparent,#a9aebb,transparent);margin:0 5px}
     .bts-cube-new{animation:bts-confirm-in .9s cubic-bezier(.2,.75,.25,1) both}
     .bts-cubes-empty{font-size:16px;color:#8a8f9b;padding:20px 0}
     @keyframes bts-confirm-in{from{opacity:.25;transform:translateX(30%) translateY(-7px)}to{opacity:1;transform:translateX(0) translateY(0)}}
     @keyframes bts-pool-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-    @container (max-width:400px){.bts-cubes{min-height:104px;padding-top:23px;padding-bottom:19px}.bts-cube-front{gap:2px}.bts-cube-divider{margin:0 3px;height:38px}}
+    @container (max-width:400px){.bts-cubes{min-height:120px;padding-top:27px;padding-bottom:22px}.bts-cube-front{gap:2px}.bts-cube-divider{margin:0 3px;height:44px}}
     @media(prefers-reduced-motion:reduce){.bts-cube-pending,.bts-cube-new{animation:none}}
     </style><div class="bts-cubes-wrap"><div class="bts-cubes" aria-label="비트코인 확정 블록과 멤풀 대기 거래">''' + "".join(cards) + "</div></div>"
 
